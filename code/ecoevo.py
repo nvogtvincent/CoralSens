@@ -86,7 +86,7 @@ class simulation:
                     z = z.flatten()
                 else:
                     raise Exception('Initial conditions must be at most 1D.')
-            else:
+            elif type(z) not in [int, float]:
                 raise Exception('Initial conditions must be at most 1D.')
             
             if hasattr(self, 'i') and _i != self.i:
@@ -105,13 +105,13 @@ class simulation:
                     c = c.flatten()
                 else:
                     raise Exception('Initial conditions must be at most 1D.')
-            else:
+            elif type(c) not in [int, float]:
                 raise Exception('Initial conditions must be at most 1D.')
             
-            if hasattr(self, 'c') and _c != self.c:
+            if hasattr(self, 'i') and _i != self.i:
                 raise Exception('Inconsistent number of sites. Reset the simulation.')
             else:
-                self.c = _c
+                self.i = _i
             
             self.c0 = c
             
