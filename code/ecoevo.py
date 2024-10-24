@@ -11,7 +11,7 @@ class simulation:
 
     '''
 
-    def __init__(self, name='simulation'):
+    def __init__(self, name='simulation', sites=None):
 
         # Initialise simulation
         self.params = {}
@@ -21,6 +21,10 @@ class simulation:
         self.status = {'params': False,
                        'initial': False,
                        'boundary': False}
+        
+        if sites is not None:
+            assert type(sites) == int
+            self.i = sites
     
     def set_bc(self, bc=None): 
         '''
@@ -78,7 +82,9 @@ class simulation:
         
         # Get dimensions of array, check if consistent with records
         if z is not None:
-            if z.ndim == 1:
+            if type(z) in [int, float]:
+                _i = None
+            elif z.ndim == 1:
                 _i = len(z)
             elif z.ndim == 2:
                 if z.shape[1] == 1:
@@ -86,7 +92,7 @@ class simulation:
                     z = z.flatten()
                 else:
                     raise Exception('Initial conditions must be at most 1D.')
-            elif type(z) not in [int, float]:
+            else:
                 raise Exception('Initial conditions must be at most 1D.')
             
             if hasattr(self, 'i') and _i != self.i:
@@ -97,7 +103,9 @@ class simulation:
             self.z0 = z
         
         if c is not None:
-            if c.ndim == 1:
+            if type(c) in [int, float]:
+                _i = None
+            elif c.ndim == 1:
                 _i = len(c)
             elif c.ndim == 2:
                 if c.shape[1] == 1:
@@ -105,7 +113,7 @@ class simulation:
                     c = c.flatten()
                 else:
                     raise Exception('Initial conditions must be at most 1D.')
-            elif type(c) not in [int, float]:
+            else:
                 raise Exception('Initial conditions must be at most 1D.')
             
             if hasattr(self, 'i') and _i != self.i:
