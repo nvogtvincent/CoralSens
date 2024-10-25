@@ -70,7 +70,7 @@ class simulation:
         for var_name, var in zip(['T', 'I'], [T, I]):
             if var is not None:
                 if type(var) in [int, float]:
-                    setattr(self, var_name, var*np.ones((self.i), dtype=np.float32))
+                    setattr(self, var_name, var*np.ones((self.j), dtype=np.float32))
                 elif var.ndim == 1:
                     self.check_dim('j', len(var))
                     setattr(self, var_name, var.flatten().astype(np.float32))
@@ -149,5 +149,61 @@ class simulation:
         if _check == 1:
             self.status['params'] = True
                     
-    def run(self, output_dt=None):
-        print()
+    def run(self, output_dt=None, params=True, bc=True):
+        '''
+        Run a simulation.
+            output_dt: None - output final state only
+                       int  - output every *int* time-steps
+            params:    Bool - Include parameters in output
+            bc    :    Bool - Include boundary conditions in output
+        '''
+        
+        if not (self.status['params'] and self.status['bc'] and self.status['ic']):
+            raise Exception('Simulation is not fully configured.')
+        
+        # Create the time axis (in years)
+        if output_dt is None:
+            _time = np.array([0, self.j*self.dt/12], dtype=np.float32)
+            _t_idx = [0, -1]
+        else:
+            if output_dt%self.dt != 0:
+                raise Exception('Output frequency must be multiple of time-step.')
+            if (self.j*self.dt)%output_dt != 0:
+                raise Exception('Output frequency must be a factor of the number of time-steps.')
+            if output_dt < self.dt:
+                raise Exception('Output frequency cannot be less than time-step.')
+                
+            _time = np.arange(0, (self.j+1)*self.dt, output_dt, dtype=np.float32)/12
+            
+            # Time indices to extract for export
+            _t_idx = np.arange(output_dt, self.j+int(output_dt/self.dt), int(output_dt/self.dt), dtype=int) - 1
+        
+        # Create the site axis
+        _site = np.arange(self.i, dtype=np.int32)
+        
+        # Create the dataset
+        _template = np.zeros((self.i, len(_time)), dtype=np.float32)
+        self.output = xr.Dataset(data_vars={'c': (['site', 'time'], _template),
+                                            'z': (['site', 'time'], _template)},
+                                 coords={'site': ('site', _site),
+                                         'time': ('time', _time, {'units': 'years'})})
+        
+        if params:
+            param_list = ['r0', 'w', 'beta', 'V', 'cmin']
+            for param in param_list:
+                self.output[param] = xr.DataArray(data=getattr(self, param),
+                                                  dims=['site'], coords={'site': (['site'], _site)})
+        
+        if bc:
+            bc_list = ['T', 'I']
+            for _bc in bc_list:
+                if getattr(self, _bc).ndim == 1:
+                    bc_subset = np.concatenate([np.nan*np.ones((1,), dtype=np.float32), getattr(self, _bc)[_t_idx]])
+                    self.output[_bc] = xr.DataArray(data=bc_subset,
+                                                    dims=['time'], coords={'time': (['time'], _time, {'units': 'years'})})
+                else:
+                    bc_subset = np.concatenate([np.nan*np.ones((self.i, 1), dtype=np.float32), getattr(self, _bc)[:, _t_idx]], axis=0)
+                    self.output[_bc] = xr.DataArray(data=bc_subset,
+                                                    dims=['site', 'time'],
+                                                    coords={'site': (['site'], _site),
+                                                            'time': (['time'], _time, {'units': 'years'})})
