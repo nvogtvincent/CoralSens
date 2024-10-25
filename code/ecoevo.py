@@ -39,10 +39,12 @@ class simulation:
         print('Simulation time-span: ' + str(int(self.dt*self.j/12)) + ' years')
         
         # Pre-define ICs, BCs
-        self.bc = None
+        self.I = None
+        self.T = None
+        self.zc = 0.
         self.z0 = None
         self.c0 = None
-    
+            
     def check_dim(self, dim, val):
         '''
         Check if dimension dim has a value val. Returns None if
@@ -58,13 +60,16 @@ class simulation:
                 raise Exception('Dimension ' + dim + ' is incompatible.')
             
     
-    def set_bc(self, T=None, I=None): 
+    def set_bc(self, T=None, I=None, zc=None): 
         '''
         Set the boundary conditions for a simulation. 
-            T: numpy array with values of T
+            T: numpy array with values of T (temperature)
                  Either [i * j] or [1 * j] or [j]
-            I: numpy array with values of I
+            I: numpy array with values of I (immigrant larval flux)
                 Either [i * j] or [1 * j] or [j]
+            zc: None/numeric (thermal optimum of immigrant larvae), one of the following options:
+                None    : zc = z
+                numeric : zc = z + constant
         ''' 
         
         for var_name, var in zip(['T', 'I'], [T, I]):
@@ -80,9 +85,13 @@ class simulation:
                     setattr(self, var_name, var.astype(np.float32))
                 else:
                     raise Exception('Boundary conditions must be 1D or 2D.')
+        
+        if zc is not None:
+            assert type(zc) in [float, int]
+            self.zc = zc    
 
         # Update status
-        if hasattr(self, 'T') and hasattr(self, 'I'):
+        if hasattr(self, 'T') and hasattr(self, 'I') and hasattr(self, 'zc'):
             self.status['bc'] = True
     
     def set_ic(self, z=None, c=None):
