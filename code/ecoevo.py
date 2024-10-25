@@ -11,7 +11,7 @@ class simulation:
 
     '''
 
-    def __init__(self, name='simulation', i=1, j=None, dt=1):
+    def __init__(self, name='Simulation', i=1, j=None, dt=1):
 
         # Initialise simulation
         self.params = {}
@@ -24,8 +24,7 @@ class simulation:
         
         self.dt = dt
         self.i = int(i)
-        if j is not None:
-            self.j = int(j)   
+        self.j = int(j)   
         
         print('###################################')
         print('###   Simulation initialised!   ###')
@@ -35,7 +34,9 @@ class simulation:
         _plural = '' if self.dt == 1 else 's'
         print('Name: ' + self.name)
         print('Time-step: ' + str(self.dt) + ' month' + _plural)
-        print('Number of sites: ' + str(self.dt))
+        print('Number of sites: ' + str(self.i))
+        print('Number of time-steps: ' + str(self.j))
+        print('Simulation time-span: ' + str(int(self.dt*self.j/12)) + ' years')
         
         # Pre-define ICs, BCs
         self.bc = None
@@ -49,13 +50,12 @@ class simulation:
         '''
         
         if not hasattr(self, dim):
-            setattr(self, dim, val)
-            return None
+            raise Exception('Dimension ' + dim + ' does not exist.')
         else:
             if getattr(self, dim) == val:
                 return None
             else:
-                raise Exception('Dimensions are incompatible.')
+                raise Exception('Dimension ' + dim + ' is incompatible.')
             
     
     def set_bc(self, T=None, I=None): 
