@@ -11,7 +11,7 @@ class simulation:
 
     '''
 
-    def __init__(self, name='simulation', sites=None):
+    def __init__(self, name='simulation', sites=1, dt=1):
 
         # Initialise simulation
         self.params = {}
@@ -22,9 +22,17 @@ class simulation:
                        'initial': False,
                        'boundary': False}
         
-        if sites is not None:
-            assert type(sites) == int
-            self.i = sites
+        self.dt = dt
+        self.i = int(sites)
+        
+        print('###################################')
+        print('###   Simulation initialised!   ###')
+        print('###################################')
+        print('')
+        
+        _plural = '' if self.dt == 1 else 's'
+        print('Time-step: ' + str(self.dt) + ' month' + _plural)
+        print('Number of sites: ' + str(self.dt))
     
     def set_bc(self, bc=None): 
         '''
@@ -41,32 +49,24 @@ class simulation:
             bc = bc.data
         
         # Get dimensions of array, check if consistent with records
-        _i, _j = None, None
         if bc.ndim == 1:
-            _j = len(bc)
+            self.j = len(bc)
         elif bc.ndim == 2:
             if bc.shape[0] == 1:
-                _j = len(bc)
+                self.j = len(bc)
                 bc = bc.flatten()
             else:
-                _j = bc.shape[1]
-                _i = bc.shape[0]
+                self.j = bc.shape[1]
+                if bc.shape[0] != self.i:
+                    raise Exception('Expected sites: ' + str(self.i) + '\nProvided sites: ' + str(bc.shape[0]))
         else:
             raise Exception('Boundary conditions must be 1D or 2D.')
         
-        if _i is not None:
-            if hasattr(self, 'i') and _i != self.i:
-                raise Exception('Inconsistent number of sites. Reset the simulation.')
-            else:
-                self.i = _i
-        
-        if hasattr(self, 'j') and _j != self.j:
-            raise Exception('Inconsistent number of time points. Reset the simulation.')
-        else:
-            self.j = _j
-        
         # Save boundary conditions
         self.bc = bc
+        
+        # Return length of simulation
+        print('Simulation length: ' + str(int(self.dt*self.j/12)) + ' years')
             
         # Update status
         self.status['boundary'] = True
@@ -83,43 +83,31 @@ class simulation:
         # Get dimensions of array, check if consistent with records
         if z is not None:
             if type(z) in [int, float]:
-                _i = None
-            elif z.ndim == 1:
-                _i = len(z)
-            elif z.ndim == 2:
-                if z.shape[1] == 1:
-                    _i = len(z)
+                pass
+            elif z.ndim in [1, 2]:
+                if z.ndim == 2:
+                    assert z.shape[1] == 1
                     z = z.flatten()
-                else:
-                    raise Exception('Initial conditions must be at most 1D.')
+                
+                if len(z) != self.i:
+                    raise Exception('Expected sites: ' + str(self.i) + '\nProvided sites: ' + str(len(z)))
             else:
                 raise Exception('Initial conditions must be at most 1D.')
-            
-            if hasattr(self, 'i') and _i != self.i:
-                raise Exception('Inconsistent number of sites. Reset the simulation.')
-            else:
-                self.i = _i
             
             self.z0 = z
         
         if c is not None:
             if type(c) in [int, float]:
-                _i = None
-            elif c.ndim == 1:
-                _i = len(c)
-            elif c.ndim == 2:
-                if c.shape[1] == 1:
-                    _i = len(c)
+                pass
+            elif c.ndim in [1, 2]:
+                if c.ndim == 2:
+                    assert c.shape[1] == 1
                     c = c.flatten()
-                else:
-                    raise Exception('Initial conditions must be at most 1D.')
+                
+                if len(c) != self.i:
+                    raise Exception('Expected sites: ' + str(self.i) + '\nProvided sites: ' + str(len(c)))
             else:
                 raise Exception('Initial conditions must be at most 1D.')
-            
-            if hasattr(self, 'i') and _i != self.i:
-                raise Exception('Inconsistent number of sites. Reset the simulation.')
-            else:
-                self.i = _i
             
             self.c0 = c
             
