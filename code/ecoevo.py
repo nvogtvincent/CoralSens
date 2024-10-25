@@ -31,6 +31,7 @@ class simulation:
         print('')
         
         _plural = '' if self.dt == 1 else 's'
+        print('Name: ' + self.name)
         print('Time-step: ' + str(self.dt) + ' month' + _plural)
         print('Number of sites: ' + str(self.dt))
         
@@ -42,7 +43,7 @@ class simulation:
     def set_bc(self, bc=None): 
         '''
         Set the boundary conditions for a simulation. 
-           bc: numpy array or xarray DataArray with values of T
+           bc: numpy array with values of T
                 Either [i * j] or [1 * j] or [j]
         ''' 
         
@@ -68,7 +69,7 @@ class simulation:
             raise Exception('Boundary conditions must be 1D or 2D.')
         
         # Save boundary conditions
-        self.bc = bc
+        self.bc = bc.astype(np.float32)
         
         # Return length of simulation
         print('Simulation length: ' + str(int(self.dt*self.j/12)) + ' years')
@@ -79,16 +80,16 @@ class simulation:
     def set_ic(self, z=None, c=None):
         '''
         Set the initial conditions for a simulation. 
-            z: numpy array or xarray DataArray (thermal optimum)
+            z: numpy array (thermal optimum)
                 Either [i] or [i * 1] or scalar
-            c: numpy array or xarray DataArray (coral cover)
+            c: numpy array (coral cover)
                 Either [i] or [i * 1] or scalar
         ''' 
         
         # Get dimensions of array, check if consistent with records
         if z is not None:
             if type(z) in [int, float]:
-                pass
+                z = np.ones((self.i,), dtype=np.float32)*z
             elif z.ndim in [1, 2]:
                 if z.ndim == 2:
                     assert z.shape[1] == 1
@@ -99,11 +100,11 @@ class simulation:
             else:
                 raise Exception('Initial conditions must be at most 1D.')
             
-            self.z0 = z
+            self.z0 = z.astype(np.float32)
         
         if c is not None:
             if type(c) in [int, float]:
-                pass
+                c = np.ones((self.i,), dtype=np.float32)*c
             elif c.ndim in [1, 2]:
                 if c.ndim == 2:
                     assert c.shape[1] == 1
@@ -114,8 +115,41 @@ class simulation:
             else:
                 raise Exception('Initial conditions must be at most 1D.')
             
-            self.c0 = c
+            self.c0 = c.astype(np.float32)
         
         if self.c0 is not None and self.z0 is not None:
             self.status['ic'] = True
+
+    def set_param(self, **kwargs):
+        '''
+        Set parameters for the simulation.
+            kwarg: numpy array  
+                Either [i] or scalar
             
+        Permitted kwargs:
+            r0, w, beta, V, cmin
+        '''        
+        
+        _permitted_kwargs = ['r0', 'w', 'beta', 'V', 'cmin']
+        for kwarg in kwargs:
+            if kwarg in _permitted_kwargs:
+                if type(kwargs[kwarg]) in [float, int]:
+                    setattr(self, kwarg, kwargs[kwarg]*np.ones((self.i,), dtype=np.float32))
+                else:
+                    if kwargs[kwarg].ndim == 2:
+                        assert kwargs[kwarg].shape[1] == 1
+                        kwargs[kwarg] = kwargs[kwarg].flatten()
+                        setattr(self, kwarg, kwargs[kwarg].astype(np.float32))
+                    elif kwargs[kwarg].ndim == 1:
+                        setattr(self, kwarg, kwargs[kwarg].astype(np.float32))
+                    else:
+                        raise Exception('Parameter ' + kwarg + ' must be at most 1D.')
+                    
+                    if len(getattr(self, kwarg)) != self.i:
+                        raise Exception('Expected sites: ' + str(self.i) + '\nProvided sites: ' + str(len(self.kwarg)))
+                    
+        
+        
+        
+    def run(self, output_dt=None):
+        print()
