@@ -11,7 +11,7 @@ class simulation:
 
     '''
 
-    def __init__(self, name='simulation', sites=1, dt=1):
+    def __init__(self, name='simulation', i=1, j=None, dt=1):
 
         # Initialise simulation
         self.params = {}
@@ -23,7 +23,9 @@ class simulation:
                        'bc': False}
         
         self.dt = dt
-        self.i = int(sites)
+        self.i = int(i)
+        if j is not None:
+            self.j = int(j)   
         
         print('###################################')
         print('###   Simulation initialised!   ###')
@@ -138,8 +140,14 @@ class simulation:
                     if len(getattr(self, kwarg)) != self.i:
                         raise Exception('Expected sites: ' + str(self.i) + '\nProvided sites: ' + str(len(self.kwarg)))
                     
+        # Check if all parameters have been assigned
+        _check = 1
+        for kwarg in _permitted_kwargs:
+            if not hasattr(self, kwarg):
+                _check *= 0
         
-        
-        
+        if _check == 1:
+            self.status['params'] = True
+                    
     def run(self, output_dt=None):
         print()
