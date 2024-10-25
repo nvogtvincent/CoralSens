@@ -19,8 +19,8 @@ class simulation:
 
         # Track simulation status
         self.status = {'params': False,
-                       'initial': False,
-                       'boundary': False}
+                       'ic': False,
+                       'bc': False}
         
         self.dt = dt
         self.i = int(sites)
@@ -33,6 +33,11 @@ class simulation:
         _plural = '' if self.dt == 1 else 's'
         print('Time-step: ' + str(self.dt) + ' month' + _plural)
         print('Number of sites: ' + str(self.dt))
+        
+        # Pre-define ICs, BCs
+        self.bc = None
+        self.z0 = None
+        self.c0 = None
     
     def set_bc(self, bc=None): 
         '''
@@ -69,7 +74,7 @@ class simulation:
         print('Simulation length: ' + str(int(self.dt*self.j/12)) + ' years')
             
         # Update status
-        self.status['boundary'] = True
+        self.status['bc'] = True
     
     def set_ic(self, z=None, c=None):
         '''
@@ -110,4 +115,7 @@ class simulation:
                 raise Exception('Initial conditions must be at most 1D.')
             
             self.c0 = c
+        
+        if self.c0 is not None and self.z0 is not None:
+            self.status['ic'] = True
             
