@@ -40,42 +40,48 @@ class simulation:
         self.z0 = None
         self.c0 = None
     
-    def set_bc(self, bc=None): 
+    def check_dim(self, dim, val):
+        '''
+        Check if dimension dim has a value val. Returns None if
+        it does (set value if it does not exist), exception otherwise.
+        '''
+        
+        if not hasattr(self, dim):
+            setattr(self, dim, val)
+            return None
+        else:
+            if getattr(self, dim) == val:
+                return None
+            else:
+                raise Exception('Dimensions are incompatible.')
+            
+    
+    def set_bc(self, T=None, I=None): 
         '''
         Set the boundary conditions for a simulation. 
-           bc: numpy array with values of T
+            T: numpy array with values of T
+                 Either [i * j] or [1 * j] or [j]
+            I: numpy array with values of I
                 Either [i * j] or [1 * j] or [j]
         ''' 
         
-        # Check input has correct datatype 
-        if type(bc) not in [xr.DataArray, np.ndarray]:
-            print('Hey')
-            raise Exception('Boundary conditions must be a numpy array or xarray DataArray.')
-        elif type(bc) == xr.DataArray:
-            bc = bc.data
-        
-        # Get dimensions of array, check if consistent with records
-        if bc.ndim == 1:
-            self.j = len(bc)
-        elif bc.ndim == 2:
-            if bc.shape[0] == 1:
-                self.j = len(bc)
-                bc = bc.flatten()
-            else:
-                self.j = bc.shape[1]
-                if bc.shape[0] != self.i:
-                    raise Exception('Expected sites: ' + str(self.i) + '\nProvided sites: ' + str(bc.shape[0]))
-        else:
-            raise Exception('Boundary conditions must be 1D or 2D.')
-        
-        # Save boundary conditions
-        self.bc = bc.astype(np.float32)
-        
-        # Return length of simulation
-        print('Simulation length: ' + str(int(self.dt*self.j/12)) + ' years')
-            
+        for var_name, var in zip(['T', 'I'], [T, I]):
+            if var is not None:
+                if type(var) in [int, float]:
+                    setattr(self, var_name, var*np.ones((self.i), dtype=np.float32))
+                elif var.ndim == 1:
+                    self.check_dim('j', len(var))
+                    setattr(self, var_name, var.flatten().astype(np.float32))
+                elif var.ndim == 2:
+                    self.check_dim('i', var.shape[0])
+                    self.check_dim('j', var.shape[1])
+                    setattr(self, var_name, var.astype(np.float32))
+                else:
+                    raise Exception('Boundary conditions must be 1D or 2D.')
+
         # Update status
-        self.status['bc'] = True
+        if hasattr(self, 'T') and hasattr(self, 'I'):
+            self.status['bc'] = True
     
     def set_ic(self, z=None, c=None):
         '''
@@ -86,38 +92,22 @@ class simulation:
                 Either [i] or [i * 1] or scalar
         ''' 
         
-        # Get dimensions of array, check if consistent with records
-        if z is not None:
-            if type(z) in [int, float]:
-                z = np.ones((self.i,), dtype=np.float32)*z
-            elif z.ndim in [1, 2]:
-                if z.ndim == 2:
-                    assert z.shape[1] == 1
-                    z = z.flatten()
-                
-                if len(z) != self.i:
-                    raise Exception('Expected sites: ' + str(self.i) + '\nProvided sites: ' + str(len(z)))
-            else:
-                raise Exception('Initial conditions must be at most 1D.')
-            
-            self.z0 = z.astype(np.float32)
-        
-        if c is not None:
-            if type(c) in [int, float]:
-                c = np.ones((self.i,), dtype=np.float32)*c
-            elif c.ndim in [1, 2]:
-                if c.ndim == 2:
-                    assert c.shape[1] == 1
-                    c = c.flatten()
-                
-                if len(c) != self.i:
-                    raise Exception('Expected sites: ' + str(self.i) + '\nProvided sites: ' + str(len(c)))
-            else:
-                raise Exception('Initial conditions must be at most 1D.')
-            
-            self.c0 = c.astype(np.float32)
-        
-        if self.c0 is not None and self.z0 is not None:
+        for var_name, var in zip(['z0', 'c0'], [z, c]):
+            if var is not None:
+                if type(var) in [int, float]:
+                    setattr(self, var_name, var*np.ones((self.i), dtype=np.float32))
+                elif var.ndim == 1:
+                    self.check_dim('i', len(var))
+                    setattr(self, var_name, var.flatten().astype(np.float32))
+                elif var.ndim == 2:
+                    self.check_dim('i', var.shape[0])
+                    assert var.shape[1] == 1
+                    setattr(self, var_name, var.flatten().astype(np.float32))
+                else:
+                    raise Exception('Boundary conditions must be 1D or 2D.')
+
+        # Update status
+        if hasattr(self, 'z0') and hasattr(self, 'c0'):
             self.status['ic'] = True
 
     def set_param(self, **kwargs):
