@@ -269,9 +269,10 @@ class simulation:
         dt        : numeric  (years) 
         '''
         
-        # Compute immigration
-        c = 1 - (1 - c)*np.exp(-(self.f*c + I))
-        
+        # Compute immigration 
+        dc = 1 - (1 - c)*np.exp(-(self.f*c + I)) - c  # Change in coral cover
+        z = (c*z + dc*(z + zc_offset))/(c + dc)       # New thermal optimum
+        c = c + dc                                    # New coral cover
         
         
         return c, z
