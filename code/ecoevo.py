@@ -2,6 +2,7 @@ import numpy as np
 import xarray as xr
 import numexpr as ne
 import pandas as pd
+from tqdm import tqdm
 
 class simulation:
     '''
@@ -41,7 +42,7 @@ class simulation:
         # Pre-define ICs, BCs
         self.I = None
         self.T = None
-        self.zc = 0.
+        self.zc_offset = 0.
         self.z0 = None
         self.c0 = None
             
@@ -60,7 +61,7 @@ class simulation:
                 raise Exception('Dimension ' + dim + ' is incompatible.')
             
     
-    def set_bc(self, T=None, I=None, zc=None): 
+    def set_bc(self, T=None, I=None, zc_offset=None): 
         '''
         Set the boundary conditions for a simulation. 
             T: numpy array with values of T (temperature)
@@ -86,12 +87,12 @@ class simulation:
                 else:
                     raise Exception('Boundary conditions must be 1D or 2D.')
         
-        if zc is not None:
-            assert type(zc) in [float, int]
-            self.zc = zc    
+        if zc_offset is not None:
+            assert type(zc_offset) in [float, int]
+            self.zc_offset = zc_offset    
 
         # Update status
-        if hasattr(self, 'T') and hasattr(self, 'I') and hasattr(self, 'zc'):
+        if hasattr(self, 'T') and hasattr(self, 'I') and hasattr(self, 'zc_offset'):
             self.status['bc'] = True
     
     def set_ic(self, z=None, c=None):
@@ -197,6 +198,11 @@ class simulation:
                                  coords={'site': ('site', _site),
                                          'time': ('time', _time, {'units': 'years'})})
         
+        # Store initial conditions to output
+        self.output.c.loc[:, 0] = self.c0
+        self.output.z.loc[:, 0] = self.z0
+        _c, _z = self.c0, self.z0
+        
         if params:
             param_list = ['r0', 'w', 'beta', 'V', 'cmin']
             for param in param_list:
@@ -216,3 +222,37 @@ class simulation:
                                                     dims=['site', 'time'],
                                                     coords={'site': (['site'], _site),
                                                             'time': (['time'], _time, {'units': 'years'})})
+        
+        # Start integration loop
+        print('')
+        print('Starting simulation...')
+        
+        with tqdm(total=self.j/12, unit=' years') as progress:
+            for it in range(self.j):
+                
+                # Get current month
+                month = it%12
+                
+                # Get boundary conditions
+                _T = self.T[it] if self.T.ndim == 1 else self.T[:, it]
+                _I = self.I[it] if self.I.ndim == 1 else self.I[:, it]
+                
+                # Iterate
+                _c, _z = self.forward(c=_c, z=_z, T=_T, I=_I, zc_offset=self.zc_offset, dt=self.dt/12) # Converting dt to years
+                
+                # Update progress bar
+                if month == 11:
+                    progress.update(1)
+    
+    def forward(self, c=None, z=None, T=None, I=None, zc_offset=None, dt=None):
+        '''
+        Perform one integration of the eco-evo time-stepping scheme.
+        c, z, T, I: 1D consistent numpy arrays
+        zc_offset : numeric (C)
+        dt        : numeric  (years) 
+        '''
+        a=1
+        
+        
+        
+        return c, z
