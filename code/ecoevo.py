@@ -129,16 +129,17 @@ class simulation:
                 Either [i] or scalar
             
         Permitted kwargs:
-            r0, w, f, V, cmin
+            r0, m0, w, f, V, cmin
             
-            r0 : Growth rate parameter (K y-1)
+            r0 : Growth rate parameter (y-1)
+            m0 : Mortality rate parameter (m-1)
             w  : Thermal tolerance breadth (K)
             f  : Self-recruitment (no units)
             V  : Additive genetic variance (K2)
             cmin : Population szize throttling threshold
         '''        
         
-        _permitted_kwargs = ['r0', 'w', 'f', 'V', 'cmin']
+        _permitted_kwargs = ['r0', 'm0', 'w', 'f', 'V', 'cmin']
         for kwarg in kwargs:
             if kwarg in _permitted_kwargs:
                 if type(kwargs[kwarg]) in [float, int]:
@@ -209,7 +210,7 @@ class simulation:
         _c, _z = self.c0, self.z0
         
         if params:
-            param_list = ['r0', 'w', 'f', 'V', 'cmin']
+            param_list = ['r0', 'm0', 'w', 'f', 'V', 'cmin']
             for param in param_list:
                 self.output[param] = xr.DataArray(data=getattr(self, param),
                                                   dims=['site'], coords={'site': (['site'], _site)})
@@ -248,8 +249,8 @@ class simulation:
                 _c, _z = self.forward(c=_c, z=_z, T=_T, I=_I, zc_offset=self.zc_offset, dt=self.dt/12) # Converting dt to years
                 
                 # Error checking
-                if np.any(_c > 1):
-                    raise Exception('Coral cover exceeds 100% in step ' + str(it) + '!')
+                _c = np.minimum(_c, 1.)
+                _c = np.maximum(_c, 0.)
                 
                 # Save to output
                 if it in _t_idx:
@@ -261,6 +262,13 @@ class simulation:
                 if month == 11:
                     progress.update(1)
     
+    def dcdt(self, g_core, gzz_core, c):
+        '''
+        Compute dg/dt from efficient fragments and c (for RK4 loop)
+        '''
+        c_term = self.r0*(1-c)+self.m0
+        return g_core*c_term*c + 0.5*self.V*gzz_core*c_term*c
+    
     def forward(self, c=None, z=None, T=None, I=None, zc_offset=None, dt=None):
         '''
         Perform one integration of the eco-evo time-stepping scheme.
@@ -270,9 +278,26 @@ class simulation:
         '''
         
         # Compute immigration 
-        dc = 1 - (1 - c)*np.exp(-(self.f*c + I)) - c  # Change in coral cover
-        z = (c*z + dc*(z + zc_offset))/(c + dc)       # New thermal optimum
+        dc = 1 - (1 - c)*np.exp(-(self.f*c + I)) - c  # Change in coral cover 
+        zc = (z*self.f*c + (z + zc_offset)*I)/(self.f*c + I) # Mean thermal optimum among immigrants
+        z = (c*z + dc*zc)/(c + dc)       # New thermal optimum
         c = c + dc                                    # New coral cover
+        
+        # Compute population growth common (core) terms
+        g_core = np.exp(-((T-z)**2)/(2*self.w**2))
+        gzz_core = (1/self.w**2)*g_core*(((T-z)**2/(self.w**2))-1)
+        
+        # 1 RK4 loop
+        k1 = (self.dt/12)*self.dcdt(g_core, gzz_core, c)
+        k2 = (self.dt/12)*self.dcdt(g_core, gzz_core, c+0.5*k1)
+        k3 = (self.dt/12)*self.dcdt(g_core, gzz_core, c+0.5*k2)
+        k4 = (self.dt/12)*self.dcdt(g_core, gzz_core, c+k3)
+        c = c + (k1/6) + (k2/3) + (k3/3) + (k4/6)
+        
+        # g_exp = np.exp(-((T-z)**2)/(2*self.w**2))*(self.r0*(1-c) +self.m0)
+        # g = g_exp - self.m0
+        # gz = ((T-z)/self.w**2)*g_exp
+        # gzz = (1/self.w**2)*g_exp*(((T-z)**2/(self.w**2))-1)
         
         
         return c, z
