@@ -64,13 +64,13 @@ class simulation:
     def set_bc(self, T=None, I=None, zc_offset=None): 
         '''
         Set the boundary conditions for a simulation. 
-            T: numpy array with values of T (temperature)
+            T: numpy array with values of T (temperature)            Units: degC
                  Either [i * j] or [1 * j] or [j]
-            I: numpy array with values of I (immigrant larval flux)
+            I: numpy array with values of I (immigrant larval flux)  Units: larvae m-2
                 Either [i * j] or [1 * j] or [j]
             zc: None/numeric (thermal optimum of immigrant larvae), one of the following options:
                 None    : zc = z
-                numeric : zc = z + constant
+                numeric : zc = z + constant                          Units: degC
         ''' 
         
         for var_name, var in zip(['T', 'I'], [T, I]):
@@ -98,9 +98,9 @@ class simulation:
     def set_ic(self, z=None, c=None):
         '''
         Set the initial conditions for a simulation. 
-            z: numpy array (thermal optimum)
+            z: numpy array (thermal optimum)           Units: degC
                 Either [i] or [i * 1] or scalar
-            c: numpy array (coral cover)
+            c: numpy array (coral cover)               Units: fraction
                 Either [i] or [i * 1] or scalar
         ''' 
         
@@ -129,10 +129,16 @@ class simulation:
                 Either [i] or scalar
             
         Permitted kwargs:
-            r0, w, beta, V, cmin
+            r0, w, f, V, cmin
+            
+            r0 : Growth rate parameter (K y-1)
+            w  : Thermal tolerance breadth (K)
+            f  : Self-recruitment (no units)
+            V  : Additive genetic variance (K2)
+            cmin : Population szize throttling threshold
         '''        
         
-        _permitted_kwargs = ['r0', 'w', 'beta', 'V', 'cmin']
+        _permitted_kwargs = ['r0', 'w', 'f', 'V', 'cmin']
         for kwarg in kwargs:
             if kwarg in _permitted_kwargs:
                 if type(kwargs[kwarg]) in [float, int]:
@@ -187,24 +193,23 @@ class simulation:
             
             # Time indices to extract for export
             _t_idx = np.arange(output_dt, self.j+int(output_dt/self.dt), int(output_dt/self.dt), dtype=int) - 1
-        
+            
         # Create the site axis
         _site = np.arange(self.i, dtype=np.int32)
         
         # Create the dataset
-        _template = np.zeros((self.i, len(_time)), dtype=np.float32)
-        self.output = xr.Dataset(data_vars={'c': (['site', 'time'], _template),
-                                            'z': (['site', 'time'], _template)},
+        self.output = xr.Dataset(data_vars={'c': (['site', 'time'], np.zeros((self.i, len(_time)), dtype=np.float32)),
+                                            'z': (['site', 'time'], np.zeros((self.i, len(_time)), dtype=np.float32))},
                                  coords={'site': ('site', _site),
                                          'time': ('time', _time, {'units': 'years'})})
         
         # Store initial conditions to output
-        self.output.c.loc[:, 0] = self.c0
-        self.output.z.loc[:, 0] = self.z0
+        self.output.c[:, 0] = self.c0
+        self.output.z[:, 0] = self.z0
         _c, _z = self.c0, self.z0
         
         if params:
-            param_list = ['r0', 'w', 'beta', 'V', 'cmin']
+            param_list = ['r0', 'w', 'f', 'V', 'cmin']
             for param in param_list:
                 self.output[param] = xr.DataArray(data=getattr(self, param),
                                                   dims=['site'], coords={'site': (['site'], _site)})
@@ -227,6 +232,8 @@ class simulation:
         print('')
         print('Starting simulation...')
         
+        _write_line = 1 # Which line in output to write
+        
         with tqdm(total=self.j/12, unit=' years') as progress:
             for it in range(self.j):
                 
@@ -240,6 +247,16 @@ class simulation:
                 # Iterate
                 _c, _z = self.forward(c=_c, z=_z, T=_T, I=_I, zc_offset=self.zc_offset, dt=self.dt/12) # Converting dt to years
                 
+                # Error checking
+                if np.any(_c > 1):
+                    raise Exception('Coral cover exceeds 100% in step ' + str(it) + '!')
+                
+                # Save to output
+                if it in _t_idx:
+                    self.output.c[:, _write_line] = _c
+                    self.output.z[:, _write_line] = _z
+                    _write_line += 1                
+                
                 # Update progress bar
                 if month == 11:
                     progress.update(1)
@@ -251,7 +268,9 @@ class simulation:
         zc_offset : numeric (C)
         dt        : numeric  (years) 
         '''
-        a=1
+        
+        # Compute immigration
+        c = 1 - (1 - c)*np.exp(-(self.f*c + I))
         
         
         
