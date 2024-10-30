@@ -12,7 +12,7 @@ class simulation:
 
     '''
 
-    def __init__(self, name='Simulation', i=1, j=None, dt=1):
+    def __init__(self, name='Simulation', i=1, j=None):
 
         # Initialise simulation
         self.params = {}
@@ -23,9 +23,10 @@ class simulation:
                        'ic': False,
                        'bc': False}
         
-        self.dt = dt
+        self.dt = 1
         self.i = int(i)
         self.j = int(j)   
+        self.spawning_months = [0]
         
         print('###################################')
         print('###   Simulation initialised!   ###')
@@ -245,8 +246,13 @@ class simulation:
                 _T = self.T[it] if self.T.ndim == 1 else self.T[:, it]
                 _I = self.I[it] if self.I.ndim == 1 else self.I[:, it]
                 
+                # Evaluate whether this is a spawning month
+                spawning = month in self.spawning_months
+                
                 # Iterate
-                _c, _z = self.forward(c=_c, z=_z, T=_T, I=_I, zc_offset=self.zc_offset, dt=self.dt/12) # Converting dt to years
+                _c, _z = self.forward(c=_c, z=_z, T=_T, I=_I, 
+                                      zc_offset=self.zc_offset, 
+                                      dt=self.dt/12, spawning=spawning) # Converting dt to years
                 
                 # Error checking
                 _c = np.minimum(_c, 1.)
@@ -262,14 +268,30 @@ class simulation:
                 if month == 11:
                     progress.update(1)
     
-    def dcdt(self, g_core, gzz_core, c):
+    def dcdt(self, c, z, T, core):
         '''
-        Compute dg/dt from efficient fragments and c (for RK4 loop)
+        Compute dc/dt (for RK4 loop)
         '''
-        c_term = self.r0*(1-c)+self.m0
-        return g_core*c_term*c + 0.5*self.V*gzz_core*c_term*c
+        _m0 = np.where(T > z, self.m0, 0.) 
+        supp = self.r0*(1-c) + _m0 # Repeated supplementary term
+        g = core*supp - _m0
+        gzz = core*supp*(1/(self.w**2))*(((T-z)**2)/(self.w**2) - 1)
+        
+        return g*c + 0.5*self.V*gzz*c
     
-    def forward(self, c=None, z=None, T=None, I=None, zc_offset=None, dt=None):
+    def dzdt(self, c, z, T, q):
+        '''
+        Compute dz/dt (for RK4 loop)
+        '''
+        
+        _m0 = np.where(T > z, self.m0, 0.) 
+        core = np.exp(-((T-z)**2)/(2*(self.w**2)))
+        supp = self.r0*(1-c) + _m0 # Repeated supplementary term
+        gz = core*supp*((T-z)/(self.w**2))
+        
+        return q*self.V*gz
+    
+    def forward(self, c=None, z=None, T=None, I=None, zc_offset=None, dt=None, spawning=None):
         '''
         Perform one integration of the eco-evo time-stepping scheme.
         c, z, T, I: 1D consistent numpy arrays
@@ -278,26 +300,35 @@ class simulation:
         '''
         
         # Compute immigration 
-        dc = 1 - (1 - c)*np.exp(-(self.f*c + I)) - c  # Change in coral cover 
-        zc = (z*self.f*c + (z + zc_offset)*I)/(self.f*c + I) # Mean thermal optimum among immigrants
-        z = (c*z + dc*zc)/(c + dc)       # New thermal optimum
-        c = c + dc                                    # New coral cover
+        if spawning:
+            _incoming = self.f*c + I
+            _incoming_safe = np.copy(_incoming)
+            _incoming_safe[_incoming_safe == 0] = 1. # Avoid division by zero
+                
+            dc = 1 - (1 - c)*np.exp(-_incoming) - c  # Change in coral cover 
+            zc = (z*self.f*c + (z + zc_offset)*I)/_incoming_safe # Mean thermal optimum among immigrants
+            z = (c*z + dc*zc)/(c + dc)       # New thermal optimum
+            c = c + dc                                    # New coral cover
         
-        # Compute population growth common (core) terms
-        g_core = np.exp(-((T-z)**2)/(2*self.w**2))
-        gzz_core = (1/self.w**2)*g_core*(((T-z)**2/(self.w**2))-1)
+        # RK4 LOOPS        
+        # Compute population growth common (core) term
+        core = np.exp(-((T-z)**2)/(2*(self.w**2)))
         
-        # 1 RK4 loop
-        k1 = (self.dt/12)*self.dcdt(g_core, gzz_core, c)
-        k2 = (self.dt/12)*self.dcdt(g_core, gzz_core, c+0.5*k1)
-        k3 = (self.dt/12)*self.dcdt(g_core, gzz_core, c+0.5*k2)
-        k4 = (self.dt/12)*self.dcdt(g_core, gzz_core, c+k3)
+        # RK4 terms (dc/dt)
+        k1 = (self.dt/12)*self.dcdt(c, z, T, core)
+        k2 = (self.dt/12)*self.dcdt(c+0.5*k1, z, T, core)
+        k3 = (self.dt/12)*self.dcdt(c+0.5*k2, z, T, core)
+        k4 = (self.dt/12)*self.dcdt(c+k3, z, T, core)
         c = c + (k1/6) + (k2/3) + (k3/3) + (k4/6)
+            
+        # Compute selection
+        q = np.maximum(0, 1-(self.cmin/np.maximum(self.cmin, 2*c)))
         
-        # g_exp = np.exp(-((T-z)**2)/(2*self.w**2))*(self.r0*(1-c) +self.m0)
-        # g = g_exp - self.m0
-        # gz = ((T-z)/self.w**2)*g_exp
-        # gzz = (1/self.w**2)*g_exp*(((T-z)**2/(self.w**2))-1)
-        
+        # RK4 terms (dz/dt)
+        k1 = (self.dt/12)*self.dzdt(c, z, T, q)
+        k2 = (self.dt/12)*self.dzdt(c, z+0.5*k1, T, q)
+        k3 = (self.dt/12)*self.dzdt(c, z+0.5*k2, T, q)
+        k4 = (self.dt/12)*self.dzdt(c, z+k3, T, q)
+        z = z + (k1/6) + (k2/3) + (k3/3) + (k4/6)    
         
         return c, z
