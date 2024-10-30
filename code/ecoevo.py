@@ -166,6 +166,71 @@ class simulation:
         
         if _check == 1:
             self.status['params'] = True
+    
+    def dcdt(self, c, z, T, core):
+        '''
+        Compute dc/dt (for RK4 loop)
+        '''
+        _m0 = np.where(T > z, self.m0, 0.) 
+        supp = self.r0*(1-c) + _m0 # Repeated supplementary term
+        g = core*supp - _m0
+        gzz = core*supp*(1/(self.w**2))*(((T-z)**2)/(self.w**2) - 1)
+        
+        return g*c + 0.5*self.V*gzz*c
+    
+    def dzdt(self, c, z, T, q):
+        '''
+        Compute dz/dt (for RK4 loop)
+        '''
+        
+        _m0 = np.where(T > z, self.m0, 0.) 
+        core = np.exp(-((T-z)**2)/(2*(self.w**2)))
+        supp = self.r0*(1-c) + _m0 # Repeated supplementary term
+        gz = core*supp*((T-z)/(self.w**2))
+        
+        return q*self.V*gz
+    
+    def forward(self, c=None, z=None, T=None, I=None, zc_offset=None, dt=None, spawning=None):
+        '''
+        Perform one integration of the eco-evo time-stepping scheme.
+        c, z, T, I: 1D consistent numpy arrays
+        zc_offset : numeric (C)
+        dt        : numeric  (years) 
+        '''
+        
+        # Compute immigration 
+        if spawning:
+            _incoming = self.f*c + I
+            _incoming_safe = np.copy(_incoming)
+            _incoming_safe[_incoming_safe == 0] = 1. # Avoid division by zero
+                
+            dc = 1 - (1 - c)*np.exp(-_incoming) - c  # Change in coral cover 
+            zc = (z*self.f*c + (z + zc_offset)*I)/_incoming_safe # Mean thermal optimum among immigrants
+            z = (c*z + dc*zc)/(c + dc)       # New thermal optimum
+            c = c + dc                                    # New coral cover
+        
+        # RK4 LOOPS        
+        # Compute population growth common (core) term
+        core = np.exp(-((T-z)**2)/(2*(self.w**2)))
+        
+        # RK4 terms (dc/dt)
+        k1 = (self.dt/12)*self.dcdt(c, z, T, core)
+        k2 = (self.dt/12)*self.dcdt(c+0.5*k1, z, T, core)
+        k3 = (self.dt/12)*self.dcdt(c+0.5*k2, z, T, core)
+        k4 = (self.dt/12)*self.dcdt(c+k3, z, T, core)
+        c = c + (k1/6) + (k2/3) + (k3/3) + (k4/6)
+            
+        # Compute selection
+        q = np.maximum(0, 1-(self.cmin/np.maximum(self.cmin, 2*c)))
+        
+        # RK4 terms (dz/dt)
+        k1 = (self.dt/12)*self.dzdt(c, z, T, q)
+        k2 = (self.dt/12)*self.dzdt(c, z+0.5*k1, T, q)
+        k3 = (self.dt/12)*self.dzdt(c, z+0.5*k2, T, q)
+        k4 = (self.dt/12)*self.dzdt(c, z+k3, T, q)
+        z = z + (k1/6) + (k2/3) + (k3/3) + (k4/6)    
+        
+        return c, z
                     
     def run(self, output_dt=None, params=True, bc=True):
         '''
@@ -267,68 +332,3 @@ class simulation:
                 # Update progress bar
                 if month == 11:
                     progress.update(1)
-    
-    def dcdt(self, c, z, T, core):
-        '''
-        Compute dc/dt (for RK4 loop)
-        '''
-        _m0 = np.where(T > z, self.m0, 0.) 
-        supp = self.r0*(1-c) + _m0 # Repeated supplementary term
-        g = core*supp - _m0
-        gzz = core*supp*(1/(self.w**2))*(((T-z)**2)/(self.w**2) - 1)
-        
-        return g*c + 0.5*self.V*gzz*c
-    
-    def dzdt(self, c, z, T, q):
-        '''
-        Compute dz/dt (for RK4 loop)
-        '''
-        
-        _m0 = np.where(T > z, self.m0, 0.) 
-        core = np.exp(-((T-z)**2)/(2*(self.w**2)))
-        supp = self.r0*(1-c) + _m0 # Repeated supplementary term
-        gz = core*supp*((T-z)/(self.w**2))
-        
-        return q*self.V*gz
-    
-    def forward(self, c=None, z=None, T=None, I=None, zc_offset=None, dt=None, spawning=None):
-        '''
-        Perform one integration of the eco-evo time-stepping scheme.
-        c, z, T, I: 1D consistent numpy arrays
-        zc_offset : numeric (C)
-        dt        : numeric  (years) 
-        '''
-        
-        # Compute immigration 
-        if spawning:
-            _incoming = self.f*c + I
-            _incoming_safe = np.copy(_incoming)
-            _incoming_safe[_incoming_safe == 0] = 1. # Avoid division by zero
-                
-            dc = 1 - (1 - c)*np.exp(-_incoming) - c  # Change in coral cover 
-            zc = (z*self.f*c + (z + zc_offset)*I)/_incoming_safe # Mean thermal optimum among immigrants
-            z = (c*z + dc*zc)/(c + dc)       # New thermal optimum
-            c = c + dc                                    # New coral cover
-        
-        # RK4 LOOPS        
-        # Compute population growth common (core) term
-        core = np.exp(-((T-z)**2)/(2*(self.w**2)))
-        
-        # RK4 terms (dc/dt)
-        k1 = (self.dt/12)*self.dcdt(c, z, T, core)
-        k2 = (self.dt/12)*self.dcdt(c+0.5*k1, z, T, core)
-        k3 = (self.dt/12)*self.dcdt(c+0.5*k2, z, T, core)
-        k4 = (self.dt/12)*self.dcdt(c+k3, z, T, core)
-        c = c + (k1/6) + (k2/3) + (k3/3) + (k4/6)
-            
-        # Compute selection
-        q = np.maximum(0, 1-(self.cmin/np.maximum(self.cmin, 2*c)))
-        
-        # RK4 terms (dz/dt)
-        k1 = (self.dt/12)*self.dzdt(c, z, T, q)
-        k2 = (self.dt/12)*self.dzdt(c, z+0.5*k1, T, q)
-        k3 = (self.dt/12)*self.dzdt(c, z+0.5*k2, T, q)
-        k4 = (self.dt/12)*self.dzdt(c, z+k3, T, q)
-        z = z + (k1/6) + (k2/3) + (k3/3) + (k4/6)    
-        
-        return c, z
