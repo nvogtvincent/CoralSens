@@ -285,11 +285,17 @@ class simulation:
             bc_list = ['T', 'I']
             for _bc in bc_list:
                 if getattr(self, _bc).ndim == 1:
-                    bc_subset = np.concatenate([np.nan*np.ones((1,), dtype=np.float32), getattr(self, _bc)[_t_idx]])
+                    if output_dt is None:
+                        bc_subset = getattr(self, _bc)[_t_idx]
+                    else:
+                        bc_subset = np.concatenate([np.nan*np.ones((1,), dtype=np.float32), getattr(self, _bc)[_t_idx]])
                     self.output[_bc] = xr.DataArray(data=bc_subset,
                                                     dims=['time'], coords={'time': (['time'], _time, {'units': 'years'})})
                 else:
-                    bc_subset = np.concatenate([np.nan*np.ones((self.i, 1), dtype=np.float32), getattr(self, _bc)[:, _t_idx]], axis=0)
+                    if output_dt is None:
+                        bc_subset = getattr(self, _bc)[:, _t_idx]
+                    else:
+                        bc_subset = np.concatenate([np.nan*np.ones((self.i, 1), dtype=np.float32), getattr(self, _bc)[:, _t_idx]], axis=0)
                     self.output[_bc] = xr.DataArray(data=bc_subset,
                                                     dims=['site', 'time'],
                                                     coords={'site': (['site'], _site),

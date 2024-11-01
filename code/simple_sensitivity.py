@@ -39,12 +39,29 @@ T_spin_up = -T_seas*np.cos(2*np.pi*t_spin_up) + T_mean
 sim.set_bc(T=T_spin_up[1:], I=0.0, zc_offset=0.0) # No immigration
 
 # Create initial conditions
-sim.set_ic(z=T_mean+w, c=1.00)
+sim.set_ic(z=T_mean+T_seas, c=0.50)
 
 # Set parameters
 sim.set_param(r0=2.45, m0=2.45, w=w, f=0.01, V=V, cmin=0.001)
 
-# Z SHOULD NOT BE CHANGING!!!
+# Run simulation
+sim.run(output_dt=1)
+init_c = sim.output.c[:, -1].data
+init_z = sim.output.z[:, -1].data
+
+# TEMPERATURE RAMP-UP SIMULATION
+sim = ecoevo.simulation(i=sites, j=years*12) # New simulation
+
+# Create boundary conditions with a seasonal cycle
+t = np.linspace(0, years, num=(years*12)+1)
+T = -T_seas*np.cos(2*np.pi*t) + T_mean + np.linspace(0, dT, num=(years*12)+1)
+sim.set_bc(T=T[1:], I=0.0, zc_offset=0.0) # No immigration
+
+# Create initial conditions
+sim.set_ic(z=init_z, c=init_c)
+
+# Set parameters
+sim.set_param(r0=2.45, m0=2.45, w=w, f=0.01, V=V, cmin=0.001)
 
 # Run simulation
-sim.run(output_dt=120)
+sim.run(output_dt=1)
