@@ -306,6 +306,9 @@ class simulation:
         print('Starting simulation...')
         
         _write_line = 1 # Which line in output to write
+        if output_dt:
+            _c_buffer = 0.*_c  # Compute moving averages for output
+            _z_buffer = 0.*_c  # Compute moving averages for output
         
         with tqdm(total=self.j/12, unit=' years') as progress:
             for it in range(self.j):
@@ -330,11 +333,22 @@ class simulation:
                 _c = np.maximum(_c, 0.)
                 
                 # Save to output
-                if it in _t_idx:
-                    self.output.c[:, _write_line] = _c
-                    self.output.z[:, _write_line] = _z
-                    _write_line += 1                
-                
+                if output_dt:
+                    _c_buffer += _c/output_dt
+                    _z_buffer += _z/output_dt
+                    
+                    if it in _t_idx:
+                        self.output.c[:, _write_line] = _c_buffer
+                        self.output.z[:, _write_line] = _z_buffer
+                        _write_line += 1         
+                        _c_buffer = 0.*_c
+                        _z_buffer = 0.*_z
+                else:
+                    if it in _t_idx:
+                        self.output.c[:, _write_line] = _c
+                        self.output.z[:, _write_line] = _z
+                        _write_line += 1   
+                                        
                 # Update progress bar
                 if month == 11:
                     progress.update(1)

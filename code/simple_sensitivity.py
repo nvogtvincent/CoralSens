@@ -64,4 +64,4 @@ sim.set_ic(z=init_z, c=init_c)
 sim.set_param(r0=2.45, m0=2.45, w=w, f=0.01, V=V, cmin=0.001)
 
 # Run simulation
-sim.run(output_dt=1)
+sim.run(output_dt=12)
