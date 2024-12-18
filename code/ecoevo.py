@@ -76,6 +76,8 @@ class simulation:
         
         for var_name, var in zip(['T', 'I'], [T, I]):
             if var is not None:
+                if type(var) == xr.DataArray:
+                    var = var.data
                 if type(var) in [int, float]:
                     setattr(self, var_name, var*np.ones((self.j), dtype=np.float32))
                 elif var.ndim == 1:
