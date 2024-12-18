@@ -115,8 +115,9 @@ for site in output.site.data:
     for i, var in enumerate(list(_var_params.keys())):
         assert np.array_equal(_perms[i], var_params[var].reshape(_perms[i].shape))
         output_shape = list(_perms[i].shape) + [j_spin_up]
-        output_su['c'].data[i] = sim.output.c[:, 1:].data.reshape(output_shape)
-        output_su['z'].data[i] = sim.output.z[:, 1:].data.reshape(output_shape)
+        
+    output_su['c'].data[site] = sim.output.c[:, 1:].data.reshape(output_shape)
+    output_su['z'].data[site] = sim.output.z[:, 1:].data.reshape(output_shape)
     
     # FUTURE SIMULATION
     sim = ecoevo.simulation(i=n_runs, j=j_full) # New simulation
@@ -138,9 +139,11 @@ for site in output.site.data:
     for i, var in enumerate(list(_var_params.keys())):
         assert np.array_equal(_perms[i], var_params[var].reshape(_perms[i].shape))
         output_shape = list(_perms[i].shape) + [j_full]
-        output['c'].data[i] = sim.output.c[:, 1:].data.reshape(output_shape)
-        output['z'].data[i] = sim.output.z[:, 1:].data.reshape(output_shape)
+        
+    output['c'].data[site] = sim.output.c[:, 1:].data.reshape(output_shape)
+    output['z'].data[site] = sim.output.z[:, 1:].data.reshape(output_shape)
     
+
 # # ANALYSES
 # # Compute change in coral cover
 # rel_change = (sim.output.c.min(dim='time')-sim.output.c[:, 0])/sim.output.c[:, 0]
