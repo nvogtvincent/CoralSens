@@ -109,6 +109,9 @@ class simulation:
         
         for var_name, var in zip(['z0', 'c0'], [z, c]):
             if var is not None:
+                if type(var) == xr.DataArray:
+                    var = var.data
+                    var = var.item() if var.shape == () else var
                 if type(var) in [int, float]:
                     setattr(self, var_name, var*np.ones((self.i), dtype=np.float32))
                 elif var.ndim == 1:
@@ -119,7 +122,7 @@ class simulation:
                     assert var.shape[1] == 1
                     setattr(self, var_name, var.flatten().astype(np.float32))
                 else:
-                    raise Exception('Boundary conditions must be 1D or 2D.')
+                    raise Exception('Initial conditions must be 0D, 1D or 2D.')
 
         # Update status
         if hasattr(self, 'z0') and hasattr(self, 'c0'):
