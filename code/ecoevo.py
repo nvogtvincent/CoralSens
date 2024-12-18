@@ -209,8 +209,7 @@ class simulation:
                 
             dc = 1 - (1 - c)*np.exp(-_incoming) - c  # Change in coral cover 
             zc = (z*self.f*c + (z + zc_offset)*I)/_incoming_safe # Mean thermal optimum among immigrants
-            _safe_c = c + dc; _safe_c[c + dc == 0] = 1. # Avoid division by zero errors
-            z = np.where(c + dc > 0, (c*z + dc*zc)/_safe_c, z) # New Z
+            np.divide(c*z + dc*zc, c + dc, out=z, where=(c + dc > 0))
             c = c + dc                                        # New coral cover
         
         # RK4 LOOPS        
