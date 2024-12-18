@@ -1,7 +1,5 @@
 import numpy as np
 import xarray as xr
-import numexpr as ne
-import pandas as pd
 from tqdm import tqdm
 
 class simulation:
@@ -202,7 +200,7 @@ class simulation:
         zc_offset : numeric (C)
         dt        : numeric  (years) 
         '''
-        
+              
         # Compute immigration 
         if spawning:
             _incoming = self.f*c + I
@@ -211,8 +209,9 @@ class simulation:
                 
             dc = 1 - (1 - c)*np.exp(-_incoming) - c  # Change in coral cover 
             zc = (z*self.f*c + (z + zc_offset)*I)/_incoming_safe # Mean thermal optimum among immigrants
-            z = (c*z + dc*zc)/(c + dc)       # New thermal optimum
-            c = c + dc                                    # New coral cover
+            _safe_c = c + dc; _safe_c[c + dc == 0] = 1. # Avoid division by zero errors
+            z = np.where(c + dc > 0, (c*z + dc*zc)/_safe_c, z) # New Z
+            c = c + dc                                        # New coral cover
         
         # RK4 LOOPS        
         # Compute population growth common (core) term
