@@ -68,7 +68,8 @@ j_spin_up = shape_spin_up[-1]
 j_full = shape_full[-1]
 
 coords_spin_up = {'site': np.arange(n_sites),
-                  'time': np.arange(j_spin_up)/12}
+                  'time': pd.date_range(end=datetime(year=int(data.time[0].dt.year-1), month=12, day=31),
+                                        periods=j_spin_up, freq='1ME')}
 coords_full = {'site': np.arange(n_sites),
                'time': data.time}
 for var in _var_params.keys():
@@ -110,6 +111,9 @@ for site in output.site.data:
     sim.run(output_dt=1)
     init_c = sim.output.c[:, -1].data
     init_z = sim.output.z[:, -1].data
+    
+    # Assert convergence
+    
     
     # Unpack output
     for i, var in enumerate(list(_var_params.keys())):
