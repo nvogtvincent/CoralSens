@@ -17,7 +17,7 @@ data_dir = '../data/ocean/SSP' + scenario + '.nc'
 
 # BASE PARAMETERS
 n_param  = 5  # Number of parameter values for each parameter
-years_su = 100 # Spin-up
+years_su = 150 # Spin-up
 
 r0_base = 0.37 # Based on mu=-4.2, sigma=1.9, e=0.05
 m0_base = 4.6
@@ -112,7 +112,14 @@ for site in output.site.data:
     init_c = sim.output.c[:, -1].data
     init_z = sim.output.z[:, -1].data
     
-    # Assert convergence
+    # Assert convergence based on annual means
+    _c_annual = sim.output.c.groupby(np.ceil(sim.output.c.time)).mean()
+    _z_annual = sim.output.z.groupby(np.ceil(sim.output.c.time)).mean()
+    _dc = abs(100*(_c_annual[:, -1] - _c_annual[:, -10])/_c_annual[:, -10])
+    _dz = abs(100*(_z_annual[:, -1] - _z_annual[:, -10])/_z_annual[:, -10])
+    
+    if _dc.quantile(0.99) > 1 or _dz.quantile(0.99) > 1:
+        raise Exception('Spin-up has not converged (dc99: ' + str(np.round(float(_dc.quantile(0.99)), 1)) + ', dz99: ' + str(np.round(float(_dz.quantile(0.99)), 1)) + ').')
     
     
     # Unpack output
