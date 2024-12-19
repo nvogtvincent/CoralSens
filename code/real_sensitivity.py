@@ -6,17 +6,18 @@ import cmasher as cmr
 import xarray as xr
 import importlib
 importlib.reload(ecoevo)
-from datetime import timedelta
 from matplotlib import pyplot as plt
 from pandas import date_range
 from datetime import datetime
+from sklearn.ensemble import RandomForestRegressor 
+from sklearn.inspection import permutation_importance
 
 # CLIMATE DATA DIRECTORY
 scenario = '245'
 data_dir = '../data/ocean/SSP' + scenario + '.nc'
 
 # BASE PARAMETERS
-n_param  = 5  # Number of parameter values for each parameter
+n_param  = 15  # Number of parameter values for each parameter
 years_su = 150 # Spin-up
 
 r0_base = 0.37 # Based on mu=-4.2, sigma=1.9, e=0.05
@@ -153,7 +154,39 @@ for site in output.site.data:
         
     output['c'].data[site] = sim.output.c[:, 1:].data.reshape(output_shape)
     output['z'].data[site] = sim.output.z[:, 1:].data.reshape(output_shape)
-    
+
+print('')
+print('Simulations complete.')    
+
+# ANALYSES
+# Compute change from 2002-2011 to 2091-2100
+c_annual = output.c.resample(time='1YE').mean()
+c_start = c_annual.where((c_annual.time.dt.year >= 2002)*(c_annual.time.dt.year <= 2011)).mean(dim='time')
+c_end = c_annual.where((c_annual.time.dt.year >= 2091)*(c_annual.time.dt.year <= 2100)).mean(dim='time')
+c_rel = 100*(c_end - c_start)/c_start
+c_rel = c_rel.rename('c_rel')
+
+# Flatten arrays for regression
+c_rel_vec = c_rel.mean(dim='site').stack(param=list(_var_params.keys()))
+c_rel_df = c_rel_vec.to_dataframe().reset_index(drop=True)
+
+# Log-transform log-distributed variables
+c_rel_df['V'] = np.log10(c_rel_df['V'])
+c_rel_df['f'] = np.log10(c_rel_df['f'])
+c_rel_df['r0'] = np.log10(c_rel_df['r0'])
+
+# Prepare X, y variables
+X = c_rel_df[list(_var_params.keys())]
+y = c_rel_df['c_rel']
+
+# Compute feature importance across 100 permutations
+reg = RandomForestRegressor(n_jobs=8).fit(X, y)
+importance = permutation_importance(reg, X, y, n_repeats=100, n_jobs=8,
+                                    random_state=999)
+
+# Plot importance
+f, ax = plt.subplots(1, 1, figsize=(7, 5))
+
 
 # # ANALYSES
 # # Compute change in coral cover
