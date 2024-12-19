@@ -17,8 +17,8 @@ scenario = '245'
 data_dir = '../data/ocean/SSP' + scenario + '.nc'
 
 # BASE PARAMETERS
-n_param  = 15  # Number of parameter values for each parameter
-years_su = 150 # Spin-up
+n_param  = 10  # Number of parameter values for each parameter
+years_su = 200 # Spin-up
 
 r0_base = 0.37 # Based on mu=-4.2, sigma=1.9, e=0.05
 m0_base = 4.6
@@ -185,8 +185,24 @@ importance = permutation_importance(reg, X, y, n_repeats=100, n_jobs=8,
                                     random_state=999)
 
 # Plot importance
-f, ax = plt.subplots(1, 1, figsize=(7, 5))
+f, ax = plt.subplots(1, 1, figsize=(5, 5))
 
+n_features = len(_var_params.keys())
+features = [r'$w$', r'$V$', r'$f$', r'$r_0$']
+
+ax.bar(x=np.arange(n_features),
+       bottom=importance.importances.min(axis=1),
+       height=importance.importances.max(axis=1) - importance.importances.min(axis=1),
+       color=cmr.take_cmap_colors(cmr.guppy, N=4), width=0.5)
+
+ax.set_xticks(np.arange(n_features))
+ax.set_xticklabels(features)
+ax.set_ylim([0, 1.8])
+ax.set_xlabel('Predictor')
+ax.set_ylabel('Performance degradation')
+
+ax.spines['right'].set_visible(False)
+ax.spines['top'].set_visible(False)
 
 # # ANALYSES
 # # Compute change in coral cover
