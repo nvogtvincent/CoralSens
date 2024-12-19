@@ -1,5 +1,4 @@
 import numpy as np
-import statsmodels.api as sm
 import pandas as pd
 import ecoevo
 import cmasher as cmr
@@ -11,14 +10,15 @@ from pandas import date_range
 from datetime import datetime
 from sklearn.ensemble import RandomForestRegressor 
 from sklearn.inspection import permutation_importance
+from matplotlib.gridspec import GridSpec
 
 # CLIMATE DATA DIRECTORY
 scenario = '245'
 data_dir = '../data/ocean/SSP' + scenario + '.nc'
 
 # BASE PARAMETERS
-n_param  = 10  # Number of parameter values for each parameter
-years_su = 200 # Spin-up
+n_param  = 12  # Number of parameter values for each parameter
+years_su = 250 # Spin-up
 
 r0_base = 0.37 # Based on mu=-4.2, sigma=1.9, e=0.05
 m0_base = 4.6
@@ -31,7 +31,7 @@ dw = 2
 _var_params = {'w': np.linspace(w_base-dw, w_base+dw, num=n_param),
                'V': np.logspace(-1, 1, num=n_param)*V_base,
                'f': np.logspace(-1, 1, num=n_param)*f_base,
-               'r0': np.logspace(-1, 1, num=n_param)*r0_base}
+               'r0': np.linspace(0.01, 1.0, num=n_param)}
 _perms = np.meshgrid(*[_var_params[var] for var in _var_params.keys()], indexing='ij')
 var_params = {var: _perms[i].flatten() for i, var in enumerate(_var_params.keys())}
 
@@ -154,6 +154,8 @@ for site in output.site.data:
         
     output['c'].data[site] = sim.output.c[:, 1:].data.reshape(output_shape)
     output['z'].data[site] = sim.output.z[:, 1:].data.reshape(output_shape)
+    
+    print('')
 
 print('')
 print('Simulations complete.')    
@@ -173,8 +175,8 @@ c_rel_df = c_rel_vec.to_dataframe().reset_index(drop=True)
 # Log-transform log-distributed variables
 c_rel_df['V'] = np.log10(c_rel_df['V'])
 c_rel_df['f'] = np.log10(c_rel_df['f'])
-c_rel_df['r0'] = np.log10(c_rel_df['r0'])
 
+# RANDOM FOREST REGRESSION
 # Prepare X, y variables
 X = c_rel_df[list(_var_params.keys())]
 y = c_rel_df['c_rel']
@@ -204,28 +206,23 @@ ax.set_ylabel('Performance degradation')
 ax.spines['right'].set_visible(False)
 ax.spines['top'].set_visible(False)
 
-# # ANALYSES
-# # Compute change in coral cover
-# rel_change = (sim.output.c.min(dim='time')-sim.output.c[:, 0])/sim.output.c[:, 0]
+# NORMAL PLOTS
+plt.close()
 
-# # Construct an OLS least-squares model to identify key parameters
-# df = pd.DataFrame(data={'decline': rel_change, 'w': w, 'V': V})
-# endog = df['decline']
-# exog = sm.add_constant(df[['w', 'V']])
-# ols = sm.OLS(endog=endog, exog=exog).fit()
+f = plt.figure(constrained_layout=True, figsize=(5, 5.5))
+gs = GridSpec(2, 1, figure=f, height_ratios=[1, 0.05])
+ax = []
+cax = []
 
-# # Plot
-# _decline = df['decline'].values.reshape((n_param, n_param))
-# _w = df['w'].values.reshape((n_param, n_param))
-# _V = df['V'].values.reshape((n_param, n_param))
+ax.append(f.add_subplot(gs[0, 0]))
+c_mean = c_rel.mean(dim='site')
+cplot = ax[0].contourf(c_mean.V, c_mean.r0, c_mean[4, :, 4, :].T, levels=np.linspace(-100, 0, num=11),
+                       cmap=cmr.sunburst, vmin=-100, vmax=0)
+ax[0].set_xlabel('Additive genetic variance (K$^2$)')
+ax[0].set_ylabel('Growth rate (y$^{-1}$)')
+ax[0].set_xscale('log')
 
-# plt.close()
-# f, ax = plt.subplots(1, 1, figsize=(6, 6))
-
-# cplot = ax.contourf(_w, _V, _decline, levels=np.linspace(-1, 0, num=11),
-#                     cmap=cmr.lavender, vmin=-1, vmax=0)
-# ax.set_xlabel('Thermal tolerance (C)')
-# ax.set_ylabel('Additive genetic variance (C$^2$)')
-# #ax.set_yscale('log')
-
-# plt.colorbar(cplot, label='Relative change in coral cover after ' + str(dT) + 'C warming')
+cax = f.add_subplot(gs[-1, 0])
+plt.colorbar(cplot, cax=cax, orientation='horizontal')
+cax.tick_params(axis='x', labelsize=10)
+cax.set_xlabel('Relative coral cover change over 21st century (%)', fontsize=12)
