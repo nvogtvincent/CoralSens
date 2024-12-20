@@ -66,27 +66,42 @@ class simulation:
             T: numpy array with values of T (temperature)            Units: degC
                  Either [i * j] or [1 * j] or [j]
             I: numpy array with values of I (immigrant larval flux)  Units: larvae m-2
-                Either [i * j] or [1 * j] or [j]
+                Either [] or [i * 1] or [i]
             zc: None/numeric (thermal optimum of immigrant larvae), one of the following options:
                 None    : zc = z
                 numeric : zc = z + constant                          Units: degC
         ''' 
         
-        for var_name, var in zip(['T', 'I'], [T, I]):
-            if var is not None:
-                if type(var) == xr.DataArray:
-                    var = var.data
-                if type(var) in [int, float]:
-                    setattr(self, var_name, var*np.ones((self.j), dtype=np.float32))
-                elif var.ndim == 1:
-                    self.check_dim('j', len(var))
-                    setattr(self, var_name, var.flatten().astype(np.float32))
-                elif var.ndim == 2:
-                    self.check_dim('i', var.shape[0])
-                    self.check_dim('j', var.shape[1])
-                    setattr(self, var_name, var.astype(np.float32))
-                else:
-                    raise Exception('Boundary conditions must be 1D or 2D.')
+
+        if T is not None:
+            if type(T) == xr.DataArray:
+                T = T.data
+            if type(T) in [int, float]:
+                setattr(self, 'T', T*np.ones((self.j), dtype=np.float32))
+            elif T.ndim == 1:
+                self.check_dim('j', len(T))
+                setattr(self, 'T', T.flatten().astype(np.float32))
+            elif T.ndim == 2:
+                self.check_dim('i', T.shape[0])
+                self.check_dim('j', T.shape[1])
+                setattr(self, 'T', T.astype(np.float32))
+            else:
+                raise Exception('Boundary conditions must be 1D or 2D.')
+        
+        if I is not None:
+            if type(I) == xr.DataArray:
+                I = I.data
+            if type(I) in [int, float]:
+                setattr(self, 'I', I*np.ones((self.i), dtype=np.float32))
+            elif I.ndim == 1:
+                self.check_dim('i', len(I))
+                setattr(self, 'I', I.flatten().astype(np.float32))
+            elif I.ndim == 2:
+                self.check_dim('i', I.shape[0])
+                self.check_dim('j', I.shape[1])
+                setattr(self, 'I', I.flatten().astype(np.float32))
+            else:
+                raise Exception('Boundary conditions must be 1D or 2D.')
         
         if zc_offset is not None:
             assert type(zc_offset) in [float, int]
@@ -321,7 +336,7 @@ class simulation:
                 
                 # Get boundary conditions
                 _T = self.T[it] if self.T.ndim == 1 else self.T[:, it]
-                _I = self.I[it] if self.I.ndim == 1 else self.I[:, it]
+                _I = self.I if self.I.ndim == 1 else self.I[:, it]
                 
                 # Evaluate whether this is a spawning month
                 spawning = month in self.spawning_months
