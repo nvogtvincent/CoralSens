@@ -189,10 +189,10 @@ class simulation:
         '''
         Compute dc/dt (for RK4 loop)
         '''
+        
         _m0 = np.where(T > z, self.m0, 0.) 
-        supp = self.r0*(1-c) + _m0 # Repeated supplementary term
-        g = core*supp - _m0
-        gzz = core*supp*(1/(self.w**2))*(((T-z)**2)/(self.w**2) - 1)
+        g = self.r0*np.exp(-((T-z)**2)/(2*(self.w**2)))*(1-c) - _m0*((T-z)**2)/(2*(self.w**2))
+        gzz = (self.r0/(self.w**2))*(((T-z)**2)/(self.w**2) - 1)*np.exp(-((T-z)**2)/(2*(self.w**2)))*(1-c) - (_m0/(self.w**2))
         
         return g*c + 0.5*self.V*gzz*c
     
@@ -202,9 +202,7 @@ class simulation:
         '''
         
         _m0 = np.where(T > z, self.m0, 0.) 
-        core = np.exp(-((T-z)**2)/(2*(self.w**2)))
-        supp = self.r0*(1-c) + _m0 # Repeated supplementary term
-        gz = core*supp*((T-z)/(self.w**2))
+        gz = self.r0*((T-z)/(self.w**2))*np.exp(-((T-z)**2)/(2*(self.w**2)))*(1-c) + _m0*(T-z)/(self.w**2)
         
         return q*self.V*gz
     
@@ -228,14 +226,11 @@ class simulation:
             c = c + dc                                        # New coral cover
         
         # RK4 LOOPS        
-        # Compute population growth common (core) term
-        core = np.exp(-((T-z)**2)/(2*(self.w**2)))
-        
         # RK4 terms (dc/dt)
-        k1 = (self.dt/12)*self.dcdt(c, z, T, core)
-        k2 = (self.dt/12)*self.dcdt(c+0.5*k1, z, T, core)
-        k3 = (self.dt/12)*self.dcdt(c+0.5*k2, z, T, core)
-        k4 = (self.dt/12)*self.dcdt(c+k3, z, T, core)
+        k1 = (self.dt/12)*self.dcdt(c, z, T)
+        k2 = (self.dt/12)*self.dcdt(c+0.5*k1, z, T)
+        k3 = (self.dt/12)*self.dcdt(c+0.5*k2, z, T)
+        k4 = (self.dt/12)*self.dcdt(c+k3, z, T)
         c = c + (k1/6) + (k2/3) + (k3/3) + (k4/6)
             
         # Compute selection
