@@ -185,7 +185,7 @@ class simulation:
         if _check == 1:
             self.status['params'] = True
     
-    def dcdt(self, c, z, T, core):
+    def dcdt(self, c, z, T):
         '''
         Compute dc/dt (for RK4 loop)
         '''
