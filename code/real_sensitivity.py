@@ -17,23 +17,25 @@ scenario = '245'
 data_dir = '../data/ocean/SSP' + scenario + '.nc'
 
 # BASE PARAMETERS
-n_param  = 8  # Number of parameter values for each parameter
-years_su = 250 # Spin-up
+n_param  = 7  # Number of parameter values for each parameter
+years_su = 50 # Spin-up
 
-r0_base = 0.37 # Based on mu=-4.2, sigma=1.9, e=0.05
-m0_base = 4.6
-w_base  = 4.
+r0_base = 0.1 # Based on mu=-4.2, sigma=1.9, e=0.05
+w_base  = 5
 f_base  = 0.01 # Assuming f0 = 250/polyp, r=2e-4, retention=10%
 V_base  = 0.05
 I_base  = 0.01
-zc_offset = 0.5
+DHW_base  = 14
+zc_offset = 0.1
 
 # PARAMETER RANGES
-dw = 2
+dw = 3
+dDHW = 10
 _var_params = {'w': np.linspace(w_base-dw, w_base+dw, num=n_param),
                'V': np.logspace(-1, 1, num=n_param)*V_base,
                'f': np.logspace(-1, 1, num=n_param)*f_base,
-               'r0': np.linspace(0.01, 1.0, num=n_param),
+               'r0': np.logspace(-1, 1, num=n_param)*r0_base,
+               'm0': 312.4*(w_base/np.linspace(DHW_base-dDHW, DHW_base+dDHW, num=n_param))**2,
                'I': np.logspace(-1, 1, num=n_param)*I_base}
 _perms = np.meshgrid(*[_var_params[var] for var in _var_params.keys()], indexing='ij')
 var_params = {var: _perms[i].flatten() for i, var in enumerate(_var_params.keys())}
@@ -105,10 +107,10 @@ for site in output.site.data:
     sim.set_bc(T=output_su.sst.loc[site], I=var_params['I'], zc_offset=zc_offset)
 
     # Create initial conditions
-    sim.set_ic(z=data_monclim.max(dim='month').loc[site], c=0.50)
+    sim.set_ic(z=data_monclim.max(dim='month').loc[site], c=1.0)
 
     # Set parameters
-    sim.set_param(r0=var_params['r0'], m0=m0_base, w=var_params['w'],
+    sim.set_param(r0=var_params['r0'], m0=var_params['m0'], w=var_params['w'],
                   f=var_params['f'], V=var_params['V'], cmin=0.001)
 
     # Run simulation
@@ -144,7 +146,7 @@ for site in output.site.data:
     sim.set_ic(z=init_z, c=init_c)
 
     # Set parameters
-    sim.set_param(r0=var_params['r0'], m0=m0_base, w=var_params['w'],
+    sim.set_param(r0=var_params['r0'], m0=var_params['m0'], w=var_params['w'],
                   f=var_params['f'], V=var_params['V'], cmin=0.001)
 
     # Run simulation
@@ -194,12 +196,12 @@ importance = permutation_importance(reg, X, y, n_repeats=100, n_jobs=8,
 f, ax = plt.subplots(1, 1, figsize=(5, 5))
 
 n_features = len(_var_params.keys())
-features = [r'$w$', r'$V$', r'$f$', r'$r_0$', r'$I$']
+features = [r'$w$', r'$V$', r'$f$', r'$r_0$', r'$m_0$', r'$I$']
 
 ax.bar(x=np.arange(n_features),
        bottom=importance.importances.min(axis=1),
        height=importance.importances.max(axis=1) - importance.importances.min(axis=1),
-       color=cmr.take_cmap_colors(cmr.guppy, N=4), width=0.5)
+       color=cmr.take_cmap_colors(cmr.guppy, N=len(_var_params)), width=0.5)
 
 ax.set_xticks(np.arange(n_features))
 ax.set_xticklabels(features)
@@ -220,7 +222,7 @@ cax = []
 
 ax.append(f.add_subplot(gs[0, 0]))
 c_mean = c_rel.mean(dim='site')
-cplot = ax[0].contourf(c_mean.V, c_mean.r0, c_mean[3, :, 3, :, 3].T, levels=np.linspace(-100, 0, num=11),
+cplot = ax[0].contourf(c_mean.V, c_mean.r0, c_mean[3, :, 3, :, 3, 3].T, levels=np.linspace(-100, 0, num=11),
                        cmap=cmr.sunburst, vmin=-100, vmax=0)
 ax[0].set_xlabel('Additive genetic variance (K$^2$)')
 ax[0].set_ylabel('Growth rate (y$^{-1}$)')
