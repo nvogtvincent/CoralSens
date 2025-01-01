@@ -104,8 +104,19 @@ class simulation:
                 raise Exception('Boundary conditions must be 1D or 2D.')
         
         if zc_offset is not None:
-            assert type(zc_offset) in [float, int]
-            self.zc_offset = zc_offset    
+            if type(zc_offset) == xr.DataArray:
+                zc_offset = zc_offset.data
+            if type(zc_offset) in [int, float]:
+                setattr(self, 'zc_offset', zc_offset*np.ones((self.i), dtype=np.float32))
+            elif zc_offset.ndim == 1:
+                self.check_dim('i', len(zc_offset))
+                setattr(self, 'zc_offset', zc_offset.flatten().astype(np.float32))
+            elif zc_offset.ndim == 2:
+                self.check_dim('i', zc_offset.shape[0])
+                self.check_dim('j', zc_offset.shape[1])
+                setattr(self, 'zc_offset', zc_offset.flatten().astype(np.float32))
+            else:
+                raise Exception('Boundary conditions must be 1D or 2D.')
 
         # Update status
         if hasattr(self, 'T') and hasattr(self, 'I') and hasattr(self, 'zc_offset'):
