@@ -34,9 +34,9 @@ dDHW = 10
 _var_params = {'w': np.linspace(w_base-dw, w_base+dw, num=n_param),
                'V': np.logspace(-1, 1, num=n_param)*V_base,
                'f': np.logspace(-1, 1, num=n_param)*f_base,
+               'I': np.logspace(-1, 1, num=n_param)*I_base,
                'r0': np.logspace(-1, 1, num=n_param)*r0_base,
-               'm0': 312.4*(w_base/np.linspace(DHW_base-dDHW, DHW_base+dDHW, num=n_param))**2,
-               'I': np.logspace(-1, 1, num=n_param)*I_base}
+               'm0': 312.4*(w_base/np.linspace(DHW_base-dDHW, DHW_base+dDHW, num=n_param))**2}
 _perms = np.meshgrid(*[_var_params[var] for var in _var_params.keys()], indexing='ij')
 var_params = {var: _perms[i].flatten() for i, var in enumerate(_var_params.keys())}
 
@@ -193,24 +193,45 @@ importance = permutation_importance(reg, X, y, n_repeats=100, n_jobs=8,
                                     random_state=999)
 
 # Plot importance
-f, ax = plt.subplots(1, 1, figsize=(5, 5))
+f, ax = plt.subplots(1, 1, figsize=(5, 4))
 
 n_features = len(_var_params.keys())
-features = [r'$w$', r'$V$', r'$f$', r'$r_0$', r'$m_0$', r'$I$']
+features = [r'$w$', r'$V$', r'$f$', r'$I$', r'$r_0$', r'$m_0$']
 
-ax.bar(x=np.arange(n_features),
-       bottom=importance.importances.min(axis=1),
-       height=importance.importances.max(axis=1) - importance.importances.min(axis=1),
-       color=cmr.take_cmap_colors(cmr.guppy, N=len(_var_params)), width=0.5)
+# Assign colours to features
+cmap = cmr.take_cmap_colors(cmr.ember, N=len(_var_params))
+
+# Sort by importance
+order = np.argsort(importance.importances_mean)[::-1]
+importance_sorted = importance.importances_mean[order]
+colors_sorted = [cmap[i] for i in order]
+features_sorted = [features[i] for i in order]
+min_sorted = (importance.importances_mean - importance.importances.min(axis=1))[order]
+max_sorted = (importance.importances.max(axis=1) - importance.importances_mean)[order]
+
+ax.bar(x=np.arange(n_features), height=importance_sorted, color=colors_sorted,
+       width=0.4)
+ax.errorbar(x=np.arange(n_features), y=importance_sorted, yerr=[min_sorted, max_sorted],
+            ecolor='k', elinewidth=0.5, linestyle='')
 
 ax.set_xticks(np.arange(n_features))
-ax.set_xticklabels(features)
-ax.set_ylim([0, 1.8])
+ax.set_xticklabels(features_sorted)
 ax.set_xlabel('Predictor')
 ax.set_ylabel('Performance degradation')
 
 ax.spines['right'].set_visible(False)
 ax.spines['top'].set_visible(False)
+
+# Annotation
+scenario_text = 'Emissions: ' + {'126': 'SSP1-2.6', '245': 'SSP2-4.5', '370': 'SSP3-7.0'}[scenario]
+ax.text(0.98, 0.98, scenario_text, ha='right', va='top', fontsize=10,
+        transform=ax.transAxes)
+sgn = '+' if zc_offset > 0 else ''
+immigrant_text = 'Immigrant thermal optimum: ' + sgn + str(zc_offset) + r'$^\circ$C'
+ax.text(0.98, 0.93, immigrant_text, ha='right', va='top', fontsize=10,
+        transform=ax.transAxes)
+
+plt.savefig('figures/sens_' + scenario + '_' + str(zc_offset) + '.pdf', bbox_inches='tight')
 
 # NORMAL PLOTS
 plt.close()
