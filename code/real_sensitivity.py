@@ -36,9 +36,12 @@ _var_params = {'w': np.linspace(w_base-dw, w_base+dw, num=n_param),
                'f': np.logspace(-1, 1, num=n_param)*f_base,
                'I': np.logspace(-1, 1, num=n_param)*I_base,
                'r0': np.logspace(-1, 1, num=n_param)*r0_base,
-               'm0': 312.4*(w_base/np.linspace(DHW_base-dDHW, DHW_base+dDHW, num=n_param))**2}
+               'DHW': np.linspace(DHW_base-dDHW, DHW_base+dDHW, num=n_param)}
 _perms = np.meshgrid(*[_var_params[var] for var in _var_params.keys()], indexing='ij')
+
+# Compute m0 based on actual w
 var_params = {var: _perms[i].flatten() for i, var in enumerate(_var_params.keys())}
+var_params['m0'] = 312.4*((var_params['w']/var_params['DHW'])**2)
 
 # PREPROCESS CLIMATE DATA
 data = xr.open_dataset(data_dir)
