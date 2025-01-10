@@ -17,36 +17,52 @@ scenario = '245'
 data_dir = '../data/ocean/SSP' + scenario + '.nc'
 
 # BASE PARAMETERS
+# Simulation parameters
 n_param  = 7  # Number of parameter values for each parameter
 years_su = 50 # Spin-up
 
-r0_base = 0.1 # Based on mu=-4.2, sigma=1.9, e=0.05
-w_base  = 5
-f_base  = 0.01 # Assuming f0 = 250/polyp, r=2e-4, retention=10%
-V_base  = 0.05
-I_base  = 0.01
-DHW_base  = 14
+# Variable parameters
+V_range = [0.01, 0.5, True]
+r0_range = [0.01, 1.5, True] # Min, Max, Log
+DHW_range = [4, 24, False]
+w_range = [2, 8, False]
+f_range = [0.002, 0.2, True]
+I_range = [0.001, 0.1, True]
+
+# Fixed parameters
 zc_offset = 0.1
 
 # PARAMETER RANGES
-dw = 3
-dDHW = 10
-_var_params = {'w': np.linspace(w_base-dw, w_base+dw, num=n_param),
-               'V': np.logspace(-1, 1, num=n_param)*V_base,
-               'f': np.logspace(-1, 1, num=n_param)*f_base,
-               'I': np.logspace(-1, 1, num=n_param)*I_base,
-               'r0': np.logspace(-1, 1, num=n_param)*r0_base,
-               'DHW': np.linspace(DHW_base-dDHW, DHW_base+dDHW, num=n_param)}
+def get_values(parameter_range, num):
+    # Return an array with test parameter values for input in the form [min, max, log]
+    _min = parameter_range[0]
+    _max = parameter_range[1]
+    _log = parameter_range[2]
+    
+    if _log:
+        return np.logspace(np.log10(_min), np.log10(_max), num=num)
+    else:
+        return np.linspace(_min, _max, num=num)
+    
+_var_params = {'V': get_values(V_range, n_param),
+               'r0': get_values(r0_range, n_param),
+               'w': get_values(w_range, n_param),
+               'f': get_values(f_range, n_param),
+               'I': get_values(I_range, n_param),
+               'DHW': get_values(DHW_range, n_param)}
 _perms = np.meshgrid(*[_var_params[var] for var in _var_params.keys()], indexing='ij')
+_perms = {var: _perms[i] for i, var in enumerate(_var_params.keys())}
 
 # Compute m0 based on actual w
-var_params = {var: _perms[i].flatten() for i, var in enumerate(_var_params.keys())}
+var_params = {var: _perms[var].flatten() for var in _var_params.keys()}
 var_params['m0'] = 312.4*((var_params['w']/var_params['DHW'])**2)
+_perms['m0'] = 312.4*((_perms['w']/_perms['DHW'])**2)
+
 
 # PREPROCESS CLIMATE DATA
 data = xr.open_dataset(data_dir)
 n_sites = len(data.lon)
-n_runs = len(var_params[list(_var_params.keys())[0]])
+n_runs = len(var_params[list(var_params.keys())[0]])
 data = data.assign_coords(time=date_range(start=datetime(year=2000, month=1, day=1),
                                                 periods=len(data.ocean_time), freq='1D'))
 data = data.drop_vars('ocean_time')
@@ -71,8 +87,8 @@ T_spin_up = np.tile(data_monclim.data, reps=[years_su, 1]).T
 T_full = data.temp.data.T
 
 # CREATE OUTPUT ARRAY
-shape_spin_up = [T_spin_up.shape[0]] + list(_perms[0].shape) + [T_spin_up.shape[-1]]
-shape_full = [T_full.shape[0]] + list(_perms[0].shape) + [T_full.shape[-1]]
+shape_spin_up = [T_spin_up.shape[0]] + list(_perms['V'].shape) + [T_spin_up.shape[-1]]
+shape_full = [T_full.shape[0]] + list(_perms['V'].shape) + [T_full.shape[-1]]
 j_spin_up = shape_spin_up[-1]
 j_full = shape_full[-1]
 
@@ -130,11 +146,10 @@ for site in output.site.data:
     if _dc.quantile(0.99) > 1 or _dz.quantile(0.99) > 1:
         raise Exception('Spin-up has not converged (dc99: ' + str(np.round(float(_dc.quantile(0.99)), 1)) + ', dz99: ' + str(np.round(float(_dz.quantile(0.99)), 1)) + ').')
     
-    
     # Unpack output
-    for i, var in enumerate(list(_var_params.keys())):
-        assert np.array_equal(_perms[i], var_params[var].reshape(_perms[i].shape))
-        output_shape = list(_perms[i].shape) + [j_spin_up]
+    for var in list(_var_params.keys()):
+        assert np.array_equal(_perms[var], var_params[var].reshape(_perms[var].shape))
+        output_shape = list(_perms[var].shape) + [j_spin_up]
         
     output_su['c'].data[site] = sim.output.c[:, 1:].data.reshape(output_shape)
     output_su['z'].data[site] = sim.output.z[:, 1:].data.reshape(output_shape)
@@ -156,9 +171,9 @@ for site in output.site.data:
     sim.run(output_dt=1)
     
     # Unpack output
-    for i, var in enumerate(list(_var_params.keys())):
-        assert np.array_equal(_perms[i], var_params[var].reshape(_perms[i].shape))
-        output_shape = list(_perms[i].shape) + [j_full]
+    for var in list(_var_params.keys()):
+        assert np.array_equal(_perms[var], var_params[var].reshape(_perms[var].shape))
+        output_shape = list(_perms[var].shape) + [j_full]
         
     output['c'].data[site] = sim.output.c[:, 1:].data.reshape(output_shape)
     output['z'].data[site] = sim.output.z[:, 1:].data.reshape(output_shape)
@@ -184,6 +199,7 @@ c_rel_df = c_rel_vec.to_dataframe().reset_index(drop=True)
 c_rel_df['V'] = np.log10(c_rel_df['V'])
 c_rel_df['f'] = np.log10(c_rel_df['f'])
 c_rel_df['I'] = np.log10(c_rel_df['I'])
+c_rel_df['r0'] = np.log10(c_rel_df['r0'])
 
 # RANDOM FOREST REGRESSION
 # Prepare X, y variables
@@ -198,11 +214,12 @@ importance = permutation_importance(reg, X, y, n_repeats=100, n_jobs=8,
 # Plot importance
 f, ax = plt.subplots(1, 1, figsize=(5, 4))
 
-n_features = len(_var_params.keys())
-features = [r'$w$', r'$V$', r'$f$', r'$I$', r'$r_0$', r'$m_0$']
+n_features = 6
+features = list(var_params)[:n_features]
+# features = [r'$w$', r'$V$', r'$f$', r'$I$', r'$r_0$', r'$m_0$']
 
 # Assign colours to features
-cmap = cmr.take_cmap_colors(cmr.ember, N=len(_var_params))
+cmap = cmr.take_cmap_colors(cmr.ember, N=len(var_params))
 
 # Sort by importance
 order = np.argsort(importance.importances_mean)[::-1]
