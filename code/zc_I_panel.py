@@ -9,19 +9,20 @@ from matplotlib import pyplot as plt
 from pandas import date_range
 from datetime import datetime
 from matplotlib.gridspec import GridSpec
+from matplotlib import ticker
 
 # CLIMATE DATA DIRECTORY
-scenario = '245'
+scenario = '126'
 data_dir = '../data/ocean/SSP' + scenario + '.nc'
 
 # BASE PARAMETERS
-n_param  = 40  # Number of parameter values for each parameter
+n_param  = 100  # Number of parameter values for each parameter
 years_su = 50 # Spin-up
 
 r0_base = 0.1 # Based on mu=-4.2, sigma=1.9, e=0.05
 w_base  = 5
 f_base  = 0.01 # Assuming f0 = 250/polyp, r=2e-4, retention=10%
-V_base  = 0.05
+V_base  = 0.1
 I_base  = 0.01
 DHW_base  = 12
 m0_base = 312.4*(w_base/DHW_base)**2
@@ -172,23 +173,85 @@ c_rel = c_rel.rename('c_rel')
 c_mean = c_rel.mean(dim='site')
 
 # SURFACE PLOTS
-
-f = plt.figure(constrained_layout=True, figsize=(5, 5.5))
-gs = GridSpec(4, 3, figure=f, height_ratios=[1, 1, 1, 0.05])
+f = plt.figure(constrained_layout=True, figsize=(7, 7.2))
+gs = GridSpec(4, 3, figure=f, height_ratios=[1, 1, 1, 0.08])
 ax = []
 cax = []
 
 for i in range(3):
     for j in range(3):
-        ax.append(f.add_subplot(gs[i, j]))
-        c_mean = c_rel.mean(dim='site')
-        cplot = ax[0].contourf(c_mean.V, c_mean.r0, c_mean[3, :, 3, :, 3, 3].T, levels=np.linspace(-100, 0, num=11),
-                               cmap=cmr.sunburst, vmin=-100, vmax=0)
-        ax[0].set_xlabel('Additive genetic variance (K$^2$)')
-        ax[0].set_ylabel('Growth rate (y$^{-1}$)')
-        ax[0].set_xscale('log')
+        if not (i in [0, 2] and j == 0):
+            ax.append(f.add_subplot(gs[i, j]))
+            c_mean = c_rel.mean(dim='site')
+            cplot = ax[-1].contourf(c_mean.V, c_mean.r0, c_mean[:, :, i, j].T, levels=np.linspace(-100, 0, num=26),
+                                    cmap=cmr.sunburst, vmin=-100, vmax=0)
+            
+            if i == 2 and j == 1:
+                ax[-1].set_xlabel('Additive genetic variance (K$^2$)', fontsize=12)
+                
+            if j == 0 and i == 1:
+                ax[-1].set_ylabel('Growth rate (y$^{-1}$)', fontsize=12)
+            ax[-1].set_xscale('log')
+            ax[-1].set_yscale('log')
+            
+            if i == 0 and j == 1:
+                ax[-1].set_title({'126': 'SSP1-2.6', '245': 'SSP2-4.5', '370': 'SSP3-7.0'}[scenario], fontsize=14)
+            
+            # Add labels
+            im_text = {0: 'No immigration', 0.01: 'Low immigration', 0.1: 'High immigration'}[float(c_mean[:, :, i, j].I)]
+            zc_text = r'$z_c=+$' + str(float(c_mean[:, :, i, j].zc)) + 'C'
+            textcolor = 'w' if scenario == '370' else 'k'
+            ax[-1].text(0.95, 0.95, im_text, ha='right', va='top', fontsize=10, transform=ax[-1].transAxes, c=textcolor)
+            if j > 0:
+                ax[-1].text(0.95, 0.85, zc_text, ha='right', va='top', fontsize=10, transform=ax[-1].transAxes, c=textcolor)
 
-cax = f.add_subplot(gs[-1, 0])
+cax = f.add_subplot(gs[-1, :])
 plt.colorbar(cplot, cax=cax, orientation='horizontal')
 cax.tick_params(axis='x', labelsize=10)
+cax.set_xticks([-100, -75, -50, -25, 0])
 cax.set_xlabel('Relative coral cover change over 21st century (%)', fontsize=12)
+
+plt.savefig('figures/surf_' + scenario +'.pdf', bbox_inches='tight')
+
+# Recovery potential (high immigration / no immigration)
+f = plt.figure(figsize=(5, 8))
+gs = GridSpec(5, 2, figure=f, height_ratios=[1, 1, 1, 0.06, 0.08], wspace=0.3, hspace=0.3)
+ax = []
+cax = []
+
+for i in range(3):
+    for j in range(2):
+        c_pot = 100*(c_end[:, :, :, i, j+1] - c_end[:, :, :, i, 0]).mean(dim='site')
+        
+        ax.append(f.add_subplot(gs[i, j]))
+        c_mean = c_rel.mean(dim='site')
+        cplot = ax[-1].contourf(c_mean.V, c_mean.r0, c_pot.T, levels=np.logspace(-1, 2, num=31),
+                                cmap=cmr.dusk, locator=ticker.LogLocator(), extend='min')
+        
+        if i == 2 and j == 0:
+            ax[-1].set_xlabel('Additive genetic variance (K$^2$)', fontsize=10)
+            ax[-1].xaxis.set_label_coords(1.2, -0.2)
+            
+        if i == 1 and j == 0:
+            ax[-1].set_ylabel('Growth rate (y$^{-1}$)', fontsize=10)
+        
+        if i == 0 and j == 0:
+            ax[-1].set_title({'126': 'SSP1-2.6', '245': 'SSP2-4.5', '370': 'SSP3-7.0'}[scenario], fontsize=12,
+                             x=1.1, y=1.05)
+            
+        ax[-1].set_xscale('log')
+        ax[-1].set_yscale('log')
+
+        # Add labels
+        im_text = {0: 'No immigration', 0.01: 'Low immigration', 0.1: 'High immigration'}[float(c_end[:, :, :, i, j+1].I)]
+        zc_text = r'$z_c=+$' + str(float(c_mean[:, :, i, j].zc)) + 'C'
+        textcolor = 'w' 
+        ax[-1].text(0.95, 0.95, im_text, ha='right', va='top', fontsize=10, transform=ax[-1].transAxes, c=textcolor)
+        ax[-1].text(0.95, 0.85, zc_text, ha='right', va='top', fontsize=10, transform=ax[-1].transAxes, c=textcolor)
+
+cax = f.add_subplot(gs[-1, :])
+plt.colorbar(cplot, cax=cax, orientation='horizontal')
+cax.tick_params(axis='x', labelsize=10)
+cax.set_xticks([0.1, 1, 10, 100])
+cax.set_xlabel('Effect of immigration on 2100 coral cover (%)', fontsize=12)
+plt.savefig('figures/im_eff_' + scenario +'.pdf', dpi=400, bbox_inches='tight')
