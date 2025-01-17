@@ -209,7 +209,7 @@ for i in range(3):
                 ax[-1].set_title({'126': 'SSP1-2.6', '245': 'SSP2-4.5', '370': 'SSP3-7.0'}[scenario], fontsize=14, y=1.05)
             
             # Add labels
-            im_text = {0: 'No immigration', 0.001: 'Low immigration', 0.01: 'High immigration', 0.1: 'Very high immigration'}[float(submatrix.I)]
+            im_text = {0: 'No immigration', 0.001: 'Moderate immigration', 0.01: 'High immigration', 0.1: 'Very high immigration'}[float(submatrix.I)]
             zc_text = r'$z_I=+$' + str(float(submatrix.z_I)) + 'C'
             textcolor = 'w' 
             ax[-1].text(0.05, 0.05, im_text, ha='left', va='bottom', fontsize=10, transform=ax[-1].transAxes, c=textcolor)
